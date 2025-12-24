@@ -1,5 +1,19 @@
 from qdrant_client.http import models
+from langchain_core.documents import BaseDocumentTransformer, Document
+from typing import Sequence, Any
 
+class PlaceIdDeduplicator(BaseDocumentTransformer):
+    """메타데이터의 'no' 필드를 기준으로 중복 장소를 제거합니다."""
+    def transform_documents(self, documents: Sequence[Document], **kwargs: Any) -> Sequence[Document]:
+        unique_docs = []
+        seen_ids = set()
+        for doc in documents:
+            # no가 없으면 title을, 그것도 없으면 본문을 ID로 사용
+            place_id = doc.metadata.get("no") or doc.metadata.get("title") or doc.page_content
+            if place_id not in seen_ids:
+                unique_docs.append(doc)
+                seen_ids.add(place_id)
+        return unique_docs
 
 def create_geo_radius_filter(
     lat: float, lon: float, radius_km: float = 10.0
@@ -73,3 +87,5 @@ def build_geo_fileter_with_content_type(
 
     # 4. 수정된 필터 객체 반환
     return geo_filter
+
+
