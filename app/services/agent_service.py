@@ -3,6 +3,7 @@ from app.db.vector_db import (
     get_hybrid_retriever,
     get_ensemble_retriever,
     get_reranker_retriever,
+    get_dense_retriever,
 )
 from app.db.filters import build_geo_fileter, build_geo_fileter_with_content_type
 from app.api.v1.response.ai_response import SuggestResponse
@@ -34,7 +35,7 @@ class AgentService:
             request.lat, request.lng, request.m, request.content_types
         )
 
-        retriever = get_reranker_retriever(filter=filter, top_k=request.k)
+        retriever = get_dense_retriever(filter=filter, k=request.k)
 
         docs = await retriever.ainvoke(request.query)
 

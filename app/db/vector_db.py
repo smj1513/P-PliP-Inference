@@ -395,11 +395,11 @@ async def rerank_documents(input_dict: dict) -> List[Document]:
 
 
 def get_reranker_retriever(filter: Optional[models.Filter] = None, top_k=5):
-    retriever = get_dense_retriever(k=100, filter=filter)
-    
-    #get_ensemble_retriever(
+    retriever = get_dense_retriever(k=top_k * 5, filter=filter)
+
+    # get_ensemble_retriever(
     #    k=100, dense_weight=0.3, sparse_weight=0.7, filter=filter
-    #)
+    # )
 
     chain = {
         "query": RunnablePassthrough(),
