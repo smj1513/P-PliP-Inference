@@ -24,10 +24,13 @@ async def generate_plan_node(state: PlanState) -> PlanState:
     for idx, acc in enumerate(accommodations, 1):
         acc_text += f"{idx}. {acc.get('title')} ({acc.get('content_type')})\n"
 
-    # 프롬프트 바인딩 (오늘 날짜 주입)
+    review_feedback = state.get("review_feedback", "")
+    retry_msg = ""
+    if review_feedback and review_feedback != "PASS":
+        retry_msg = f"\n\n[Previous Verification Feedback]\nThe previous plan had issues: {review_feedback}\nPlease fix these issues in the new plan."
+
     chain = PLAN_GENERATE_PROMPT | mini_llm | JsonOutputParser()
 
-    # LLM 호출
     result = await chain.ainvoke(
         {
             "user_theme": user_theme,
@@ -37,6 +40,7 @@ async def generate_plan_node(state: PlanState) -> PlanState:
             "accommodation_list": acc_text,
             "start_date": start_date,
             "end_date": end_date,
+            "feedback": retry_msg,
         }
     )
 

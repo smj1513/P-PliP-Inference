@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "P-plip-inference"
     VERSION: str = "1.0.0"
 
+    # Cohere 설정
+    COHERE_API_KEY: str
+    COHERE_MODEL: str = "rerank-multilingual-v3.0"
+
     # =========================================================
     # 3. 환경 설정 (.env 파일 로드 규칙)
     # =========================================================

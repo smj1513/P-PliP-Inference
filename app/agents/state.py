@@ -12,6 +12,10 @@ class PlanState(TypedDict):
     start_date: str
     end_date: str
     to_dos: List["ToDo"]
+    retry_count: int
+    review_feedback: str
+    retrieval_retry_count: int
+    search_feedback: str
 
 
 class ToDo(TypedDict):

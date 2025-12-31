@@ -15,10 +15,8 @@ async def search_similar_attractions_node(state: PlanState) -> PlanState:
     if lat and lon:
         geo_filter = create_geo_radius_filter(lat=lat, lon=lon, radius_km=6.0)
 
-    # 쿼리 생성
     query_text = user_theme
 
-    # 벡터 검색 실행 (관광지 추천)
     search_results = await search_hybrid(query=query_text, limit=5, filter=geo_filter)
 
     recommendations = []

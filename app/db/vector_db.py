@@ -11,20 +11,21 @@ from app.agents.prompts.query_rewrite_prompt import (
 )
 from qdrant_client.http import models
 from typing import Optional
-from langchain.retrievers import (
+from langchain_classic.retrievers import (
     EnsembleRetriever,
     MultiQueryRetriever,
     ContextualCompressionRetriever,
 )
 from langchain_core.output_parsers import StrOutputParser
 from app.db.filters import PlaceIdDeduplicator
+from langchain_cohere import CohereRerank
 
 # app/db/custom_qdrant.py
 from typing import Any, Dict, Optional, Iterable, List
 from qdrant_client.http import models as rest
 from langchain_qdrant import QdrantVectorStore
 from langchain_core.documents import Document
-from langchain.retrievers.document_compressors import DocumentCompressorPipeline
+from langchain_classic.retrievers.document_compressors import DocumentCompressorPipeline
 
 
 class CustomQdrantVectorStore(QdrantVectorStore):
@@ -100,8 +101,21 @@ def get_dense_encoder():
     )
 
 
-# 2. [핵심 수정] 모드를 인자로 받는 VectorStore 생성 함수
-# 이 함수는 무거운 작업 없이 가벼운 껍데기(VectorStore)만 반환하므로 매번 호출해도 괜찮습니다.
+@lru_cache(maxsize=1)
+def get_dense_passage_encoder():
+    return UpstageEmbeddings(
+        model=settings.DENSE_MODEL_PASSAGE, upstage_api_key=settings.UPSTAGE_API_KEY
+    )
+
+
+@lru_cache(maxsize=1)
+def get_cohere_reranker():
+    return CohereRerank(
+        model=settings.COHERE_MODEL,
+        cohere_api_key=settings.COHERE_API_KEY,
+    )
+
+
 def create_vector_store(mode: RetrievalMode) -> QdrantVectorStore:
     client = get_qdrant_client()
     sparse_encoder = get_sparse_encoder()
@@ -117,6 +131,25 @@ def create_vector_store(mode: RetrievalMode) -> QdrantVectorStore:
         sparse_embedding=sparse_encoder,
         sparse_vector_name="tags_sparse",
         retrieval_mode=mode,  # [중요] 여기서 모드를 설정합니다!
+        content_payload_key="no",
+    )
+
+
+def create_dense_passage_vector_store() -> QdrantVectorStore:
+    client = get_qdrant_client()
+    sparse_encoder = get_sparse_encoder()
+    dense_encoder = get_dense_passage_encoder()
+
+    return CustomQdrantVectorStore.from_existing_collection(
+        # client=client,
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
+        collection_name=settings.QDRANT_COLLECTION_NAME,
+        embedding=dense_encoder,
+        vector_name="overview_dense",
+        sparse_embedding=sparse_encoder,
+        sparse_vector_name="tags_sparse",
+        retrieval_mode=RetrievalMode.DENSE,  # [중요] 여기서 모드를 설정합니다!
         content_payload_key="no",
     )
 
@@ -157,6 +190,35 @@ def get_dense_retriever(k: int, filter: Optional[models.Filter] = None):
 
     search_kwargs = {
         "k": k,
+        "score_threshold": 0.4,  # <--- 여기에 임계값 추가 (예: 0.7 이상만 반환)
+        "with_payload": [
+            "no",
+            "title",
+            "overview",
+            "content_type",
+            "addr1",
+            "addr2",
+            "first_image1",
+            "first_image2",
+            "content_id",
+            "homepage",
+            "tag_names",
+            "location",
+        ],
+    }
+    if filter:
+        search_kwargs["filter"] = filter
+
+    return vector_store.as_retriever(search_kwargs=search_kwargs)
+
+
+def get_dense_passage_retriever(k: int, filter: Optional[models.Filter] = None):
+    # DENSE_PASSAGE 모드로 설정된 VectorStore를 새로 생성
+    vector_store = create_dense_passage_vector_store()
+
+    search_kwargs = {
+        "k": k,
+        "score_threshold": 0.4,  # <--- 여기에 임계값 추가 (예: 0.7 이상만 반환)
         "with_payload": [
             "no",
             "title",
@@ -268,8 +330,18 @@ def get_hyde_retriever(
     k=10,
     filter: Optional[models.Filter] = None,
 ):
-    dense_retriever = get_dense_retriever(k, filter)
+    dense_retriever = get_dense_passage_retriever(k, filter)
     hyde_chain = HYDE_PROMPT | llm | StrOutputParser() | dense_retriever
+    return hyde_chain
+
+
+def get_hybrid_hyde_retriever(
+    llm,
+    k=10,
+    filter: Optional[models.Filter] = None,
+):
+    hybrid_retriever = get_hybrid_retriever(k, filter)
+    hyde_chain = HYDE_PROMPT | llm | StrOutputParser() | hybrid_retriever
     return hyde_chain
 
 
@@ -296,7 +368,7 @@ async def search_hybrid(
 
 import asyncio
 import time
-from app.agents.graph import rerank_chain
+from app.agents.chains import rerank_chain
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 
 sem = asyncio.Semaphore(5)  # Max 3-5 concurrent batches
@@ -394,7 +466,7 @@ async def rerank_documents(input_dict: dict) -> List[Document]:
     return final_docs
 
 
-def get_reranker_retriever(filter: Optional[models.Filter] = None, top_k=5):
+def get_llm_reranker_retriever(filter: Optional[models.Filter] = None, top_k=5):
     retriever = get_dense_retriever(k=top_k * 5, filter=filter)
 
     # get_ensemble_retriever(
@@ -407,3 +479,13 @@ def get_reranker_retriever(filter: Optional[models.Filter] = None, top_k=5):
         "top_k": lambda x: top_k,
     } | RunnableLambda(rerank_documents)
     return chain
+
+
+def get_cohere_reranker_retriever(filter: Optional[models.Filter] = None, top_k=5):
+    retriever = get_dense_retriever(k=top_k * 5, filter=filter)
+    reranker = get_cohere_reranker()
+    retriever = ContextualCompressionRetriever(
+        base_compressor=reranker,
+        base_retriever=retriever,
+    )
+    return retriever

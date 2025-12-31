@@ -2,14 +2,15 @@ from app.api.v1.request.ai_request import SuggestRequest
 from app.db.vector_db import (
     get_hybrid_retriever,
     get_ensemble_retriever,
-    get_reranker_retriever,
+    get_llm_reranker_retriever,
     get_dense_retriever,
+    get_hyde_retriever,
 )
 from app.db.filters import build_geo_fileter, build_geo_fileter_with_content_type
 from app.api.v1.response.ai_response import SuggestResponse
 from typing import List
-from langchain.schema import Document
-from langchain.retrievers import MultiQueryRetriever
+from app.core.llm import large_llm
+from langchain_classic.schema import Document
 from app.core.llm import mini_llm
 import time
 import asyncio
@@ -35,13 +36,16 @@ class AgentService:
             request.lat, request.lng, request.m, request.content_types
         )
 
-        retriever = get_dense_retriever(filter=filter, k=request.k)
+        retriever = get_hyde_retriever(llm=large_llm, filter=filter, k=request.k)
 
         docs = await retriever.ainvoke(request.query)
-
         res = []
 
         for doc in docs:
+            score = doc.metadata.get("_score")
+            print(f"{doc.metadata.get('title')} : score : {score}")
+            if score < 0.4:
+                continue
             raw = doc.metadata.get("tag_names") or ""
             tags = [t.strip() for t in raw.split(",") if t.strip()]
             res.append(

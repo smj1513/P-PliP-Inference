@@ -10,15 +10,18 @@ async def rewrite_query_node(state: PlanState) -> PlanState:
 
     chain = QUERY_REWRITE_PROMPT | mini_llm | StrOutputParser()
 
-    # 테마 + 관광지 정보로 쿼리 재작성
+    search_feedback = state.get("search_feedback", "")
+    feedback_msg = ""
+    if search_feedback and search_feedback != "PASS":
+        feedback_msg = f"\n[Previous Search Feedback]\nThe previous search failed because: {search_feedback}\nPlease generate a different query to address this issue."
+
     new_query = await chain.ainvoke(
         {
             "user_theme": user_theme,
             "target_attraction_title": target["title"],
             "target_attraction_overview": target["overview"][:300],  # 너무 길면 자름
+            "feedback": feedback_msg,
         }
     )
 
-    # 재작성된 쿼리로 user_theme 업데이트 또는 별도 필드에 저장
-    # 여기서는 검색 노드(similar_search)가 user_theme을 사용하므로 이를 업데이트합니다.
     return {"user_theme": new_query}
