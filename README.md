@@ -18,15 +18,22 @@
 <br>
 
 ## 프로젝트 구조
-<!-- TODO: 프로젝트 전체 아키텍처 다이어그램 또는 파일 구조 트리 추가 -->
-<!-- 예: ![Architecture](path/to/image.png) -->
-(직접 작성할 부분: Spring Boot 백엔드, Vue.js 프론트엔드, AI Serving(FastAPI/LangChain) 간의 데이터 흐름도)
-
+<img width="593" height="650" alt="image" src="https://github.com/user-attachments/assets/fcabc4c9-928a-479b-97b7-1b38f05e2460" />
 <br>
 
-## 기여 내용 (Technical Contributions)
+## 기여 내용 (Technical Contributions) 및 트러블 슈팅
 
-### 1. 추천 엔진 성능 고도화 및 추천 성능 20% 개선
+* 관광지 추천 엔진 구현 및 추천 성능 고도화
+* LangGraph 기반 여행 계획 자동 생성 에이전트 구성
+* JWT기반 인증 시스템 구축
+* Web Application CRUD API 전반 설계 및 구현
+
+### 1. 관광지 추천 엔진 구현 및 성능 고도화
+#### 성과 : 추천 성능 20% 개선
+
+#### 최종 완성된 관광지 추천 흐름도
+<img width="743" height="345" alt="image" src="https://github.com/user-attachments/assets/298a1a51-11ba-4ff6-a6da-009cf4446ac4" />
+
 
 #### 1.1. 추천 엔진 평가 지표 수립 및 기존 지표의 한계점
 '관광지 추천' 기능에서 실제 사용시에 사용자가 원하는 장소와 다른 유형의 장소가 추천되는 문제점이 있었습니다. (ex, 카페 검색시 카페가 아닌 음식점이 추천됨) 이 문제를 해결하기 위해 실질적으로 사용자에게 필요한 '어떤 장소가 원하는 니즈와 가장 잘 부합하는가'를 판단하는 지표를 세우며 이를 추적하며 성능을 개선할 필요성이 있었습니다.
@@ -34,7 +41,7 @@
 초기에는 검색 엔진의 성능을 측정하기 위해 전통적인 정보 검색 지표인 **NDCG**와 **Hit Rate**를 사용했습니다. 그러나 실제 관광지 검색 실험 결과, 다음 세 가지 이유로 해당 지표들이 우리 프로젝트에서 성능을 직접적으로 반영하지 못함을 깨달았습니다.
 
 1. **도메인이 명확하지 않은** 작업에서의 추천 성능:
-우리 시스템에서 목표로 하는 것은 사용자에게 '어떤 장소가 원하는 니즈와 가장 잘 부합하는가'를 판단해야 했습니다. 이는 기술 문서나 구조화된 문서에 대한 검색 처럼 특정한 질문에 명확한 정답이 있는 태스크가 아닙니다. 이는 'Open Domain'에 가까운 형태의 태스크였기 때문에 기존 평가 지표와는 다른 차별화된 기준점이 필요했습니다.
+우리 시스템에서 목표로 하는 것은 사용자에게 '어떤 장소가 원하는 니즈와 가장 잘 부합하는가'를 판단해야 했습니다. 이는 기술 문서나 구조화된 문서에 대한 검색 처럼 특정한 질문에 명확한 정답이 있는 태스크가 아닙니다. 'Open Domain'에 가까운 형태의 태스크였기 때문에 기존 평가 지표와는 다른 차별화된 기준점이 필요했습니다.
 
 2. **정답(Ground Truth)의 모호성**: "분위기 좋은 카페"를 검색했을 때, 특정 A 카페만이 정답이 아닙니다. B, C 카페도 사용자의 의도에 부합한다면 정답으로 인정되어야 합니다. 기존 지표는 미리 정의된 특정 문서 하나만 정답으로 간주하여 성능을 과소평가했습니다.
 
@@ -172,8 +179,19 @@ vibe_relevance = AspectCritic(
 평가 결과, **HyDE (Hypothetical Document Embeddings)** 및 **Hybrid (Sparse+Dense)** 방식이 **평균 0.79점대**를 기록하며 가장 우수한 성능을 보였습니다. 
 단순 Dense 검색(0.66) 대비 **약 20%의 성능 향상**을 확인하였으며, 이를 통해 사용자의 모호한 의도를 파악하는 데에는 **하이브리드 또는 생성형 임베딩(HyDE)** 접근이 필수적임을 확인하여 이를 실제 관광지 추천 시스템에 적용하였습니다.
 
-![리트리버별 성능 비교표](readme-images/image-11.png)
-<!-- TODO: 3회차 평균 데이터를 시각화한 그래프 이미지 교체 필요 (현재는 예시 경로) -->
+각 지표에 대한 수치는 아래와 같은 과정을 통해 산정됩니다.
+- 1. 각 카테고리별로 생성된 쿼리(ex. 근처에 바다 뷰가 좋은 카페 추천해줘)를 기반으로 각 검색기 별로 상위 10개의 검색 결과를 받아옵니다.
+  2. 각 검색 결과에 대해 사전 정의된 평가 기준에 따라 LLM as Judge를 수행합니다. 검색된 문서에 대해 평가 결과가 0 혹은 1로 반환됩니다.
+  3. 모든 쿼리에 대해 각 검색기 별로 평가를 수행하여 쿼리 당 점수를 산출합니다. (문서 10개 중 7개가 1인 경우 0.7)
+  4. 각 검색기 별로 지표당 점수에 평균을 냅니다. (Category Alignment, Vibe Relevance)
+  5. Total Score는 Category Alignment와 Vibe Relevance에 각각0.7과 0.3의 가중치를 주어 합산합니다. (세부 카테고리가 검색 결과에서 일치하는 것이 더 중요하다 판단했습니다.)
+
+
+#### [검색기 별 추천 성능 예시]
+<img width="846" height="547" alt="image" src="https://github.com/user-attachments/assets/953baec9-88b5-4b4a-8b61-1029d21d7fa9" />
+<img width="846" height="547" alt="image" src="https://github.com/user-attachments/assets/1e2e3962-9db0-4027-9051-833b172b3608" />
+<img width="846" height="547" alt="image" src="https://github.com/user-attachments/assets/5e930c27-7a3f-451f-874c-c360de385057" />
+
 
 | Retriever | Category Alignment (Avg) | Vibe Relevance (Avg) | **Total Score (Avg)** |
 | :--- | :---: | :---: | :---: |
@@ -187,21 +205,37 @@ vibe_relevance = AspectCritic(
 
 <br>
 
-### 2. 검색 파이프라인 최적화 (Hybrid Search Pipeline)
+### 2. 검색 파이프라인 최적화 시도
+추출된 태그는 하나의 단어로 이루어져 있으며 해당 태그 자체가 관광지의 설명(Overview)를 함축하고 있습니다. 반면 문맥적인 정보는 가지고 있지 않기 때문에 기존 Overview와 동일한 형태로 임베딩 하는 것은 바람직 하지 않다 생각했습니다. <br>
+때문에 빈도기반 유사도를 활용하여 BM25 검색기로 앙상블 하고자 하였습니다. 그러나 Qdrant에는 BM25 검색을 지원하는 인덱스가 존재하지 않았으며 이를 위해 별도의 DB를 두는 것은 관리 부담이 커진다는 단점으로 인해 다른 방법을 찾아야 했습니다. <br>
+Qdrant에서 Sparse Vector에 대한 인덱스를 지원함을 확인하였고 **Sparse Embedding을 결합한 Hybrid 검색**을 도입했습니다. 이 과정에서 Sparse 검색의 품질을 높이기 위해 **'LLM 기반 태그(Tag) 추출'** 방식을 고안했습니다.
+#### Sparse 검색의 특징
+Sparse 검색은 Dense 검색과 대비되는 아래와 같은 특징을 가집니다.
+* 고차원성
+    * 수천에서 수백만 차원의 고차원을 사용
+* 지역성
+    * 각 단어를 독립적으로 표현
+    * '카페'와 '음식점'을 완전히 다른 차원으로 처리
+
+위와 같은 특징으로 인해 dense 검색의 약점인 세부 카테고리 내에서 발생하는 유사성 차이를 효과적으로 포착할 수 있을 것이라 판단했습니다 .
 
 #### 2.1. Hybrid 검색을 위한 태그(Tag) 추출 전략
-단순 Dense Vector 검색의 한계를 보완하기 위해 **Sparse Embedding을 결합한 Hybrid 검색**을 도입했습니다. 이 과정에서 Sparse 검색의 품질을 높이기 위해 **'LLM 기반 태그(Tag) 추출'** 방식을 고안했습니다.
-
 *   **가설 및 접근**: "관광지 설명(Overview)의 전체 텍스트보다는, 그 의미를 함축하는 핵심 키워드(Tag)가 검색 매칭에 더 효과적일 것이다."
 *   **구현 프로세스**:
-    1.  **Tag Extraction**: LLM을 통해 각 관광지 Overview에서 '분위기', '목적', '특징'을 나타내는 태그를 추출 (예: `#조용한`, `#야경맛집`, `#데이트코스`).
+    1.  **Tag Extraction**: LLM을 통해 각 관광지 Overview에서 '분위기', '목적', '특징'을 나타내는 태그를 추출 (예: `#조용한`, `#야경맛집`, `#데이트코스`, '#파인다이닝').
     2.  **Sparse Indexing**: 추출된 태그들을 하나의 텍스트로 결합하여 **Splade(Sparse Embedding)** 인덱스를 구축.
     3.  **Hybrid Search**: 사용자 쿼리에 대해 Dense(의미) 점수와 Sparse(태그 키워드) 점수를 가중합산(Weighted Sum)하여 최종 순위 결정.
 
 #### 2.2. Sparse 모델 선정 및 서빙 전략 (GPU Indexing / CPU Serving)
+
 *   **모델 성능 비교**:
-    *   **`Splade-ko-v1`**: **Hit Rate@5**가 가장 우수했으나, CPU 환경에서 인덱싱(저장) 속도가 매우 느린 단점이 있습니다.
-    *   **`BM25`**: 속도는 빠르지만 Top-K 정확도가 Splade 대비 저조합니다.
+    *   **`naver/splade-v3`**: 한국어로 전혀 학습이 되어있지 않아 검색에 사용할 수 없었습니다.
+    *   **`yjoonjang/splade-ko-v1`**: **Hit Rate@5**가 가장 우수했으나, CPU 환경에서 인덱싱(저장) 속도가 매우 느린 단점이 있습니다.
+    *   **`Qdrant/bm25`** : FastEmbed를 지원하는 모델로 인덱싱 및 실시간 검색에서 매우 빠르다는 특징이 있지만, 한국어로 학습되어 있지 않아 검색 성능이 매우 처참했습니다.
+    <img width="1081" height="750" alt="image" src="https://github.com/user-attachments/assets/289233ce-c0b2-44a3-b7ce-c5aaacf5328f" />
+    <img width="672" height="123" alt="image" src="https://github.com/user-attachments/assets/3050b89a-2936-4773-b907-f002578e345b" />
+
+
 *   **최적화 결정**:
     *   성능 타협 없이 **`Splade-ko-v1`**을 채택.
     *   **파이프라인 이원화**: 리소스가 많이 드는 **인덱싱(저장)은 GPU 환경**에서 배치로 미리 수행하고, 실시간 **검색(Serving)은 CPU 환경**에서 수행(쿼리당 약 0.3초)하는 구조로 배포 효율성을 확보했습니다.
@@ -212,13 +246,50 @@ vibe_relevance = AspectCritic(
 
 #### 문제 상황
 LangChain의 `QdrantVectorStore`를 사용하는 과정에서, 기존 구축된 Qdrant Collection의 Payload(데이터)가 LangChain `Document` 객체의 `metadata`로 정상적으로 매핑되지 않는 호환성 문제가 발생했습니다.
+<img width="986" height="213" alt="image" src="https://github.com/user-attachments/assets/06e75459-62a4-4d6c-aa0e-21c19af840b0" />
 
 #### 해결 과정
-1.  **원인 분석**: LangChain 라이브러리 내부 로직이 `metadata_payload_key`를 지정해도 중첩된 구조나 특정 필드 매핑을 유연하게 처리하지 못함을 확인했습니다.
-2.  **대안 비교**:
+1.  **원인 분석**: LangChain-Qdrant에서 QdrantVectorStore 내부 로직이 `metadata_payload_key`를 지정해도 중첩된 구조나 특정 필드 매핑을 유연하게 처리하지 못함을 확인했습니다. 반면, QdrantClient를 통해 직접 요청을 보내어 응답을 받을 때는 정상적으로 데이터들어오는 것을 확인했습니다.
+이 문제를 해결 하기 위해 크게 2가지 대안을 생각했습니다.
+
+<img width="920" height="777" alt="image" src="https://github.com/user-attachments/assets/ca172e2b-7268-4fc7-b581-a927660a6f72" />
+
+
+3.  **대안 비교**:
     *   *안 1*: 데이터를 `LangChain` 포맷에 맞게 전수 **Re-indexing** 수행 (약 2시간 소요 예상, 운영 리스크 큼).
     *   *안 2*: 라이브러리를 상속받아 **Custom Wrapper** 구현.
-3.  **최종 결정**: `CustomQdrantVectorStore` 클래스를 구현하여 `_document_from_point` 메서드를 오버라이딩했습니다. 이를 통해 기존 데이터를 건드리지 않고도 Payload를 완벽하게 Document 객체로 변환하는 데 성공했습니다.
+4.  **최종 결정**: 1번의 경우 데이터수가 5만건에도 약 2시간 정도의 시간이 걸리는 편이지만, 만약 훨씬 더 데이터가 많거나, 실시간으로 데이터 추가된다면 좋은 선택지가 아니라 판단했습니다. 따라서 `CustomQdrantVectorStore` 클래스를 구현하여 `_document_from_point` 메서드를 오버라이딩했습니다. 이를 통해 기존 데이터를 건드리지 않고도 Payload를 Document 객체로 변환하는 데 성공했습니다.
+
+```python
+class CustomQdrantVectorStore(QdrantVectorStore):
+    @classmethod
+    def _document_from_point(
+        cls,
+        scored_point: Any,
+        collection_name: str,
+        content_payload_key: str,
+        metadata_payload_key: str,
+    ) -> Document:
+        # scored_point.payload 전체를 metadata로 사용
+        payload: Dict[str, Any] = scored_point.payload or {}
+
+        # page_content: title 또는 content_payload_key 지정값
+        title_key = content_payload_key or "title"
+        page_content = payload.get(title_key, "")
+
+        # metadata: payload 전체 복사
+        metadata: Dict[str, Any] = dict(payload)
+
+        # QdrantVectorStore 기본 메타 필드 유지
+        metadata["_id"] = scored_point.id
+        metadata["_collection_name"] = collection_name
+
+        return Document(
+            page_content=page_content,
+            metadata=metadata,
+        )
+```
+<img width="977" height="758" alt="image" src="https://github.com/user-attachments/assets/656d85b9-d0e5-4804-9bb0-4292ddedcae1" />
 
 <br>
 
@@ -250,18 +321,4 @@ LangChain의 `QdrantVectorStore`를 사용하는 과정에서, 기존 구축된 
 ## 프로젝트 관리 (Appendix)
 
 ### WBS - 일정 관리
-![간트차트](readme-images/image-1.png)
-
-### ERD 및 시스템 설계
-<!-- TODO: ERD 다이어그램 또는 Class Diagram 이미지 추가 -->
-(직접 작성할 부분: ERD, Class Diagram 등 추가 필요)
-
-### 커밋 컨벤션
-| Type | 설명 |
-| --- | --- |
-| Feat | 새로운 기능 추가 |
-| Fix | 버그 수정 |
-| Docs | 문서 수정 |
-| Refactor | 코드 리팩토링 |
-| Test | 테스트 코드 |
-
+<img width="547" height="308" alt="image" src="https://github.com/user-attachments/assets/2e1e6a2f-5788-4f3c-92f8-f06402f1690a" />
