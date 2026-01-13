@@ -21,7 +21,7 @@
 <img width="593" height="650" alt="image" src="https://github.com/user-attachments/assets/fcabc4c9-928a-479b-97b7-1b38f05e2460" />
 <br>
 
-## 기여 내용 (Technical Contributions) 및 트러블 슈팅
+## 기여 내용 및 트러블 슈팅
 
 * 관광지 추천 엔진 구현 및 추천 성능 고도화
 * LangGraph 기반 여행 계획 자동 생성 에이전트 구성
