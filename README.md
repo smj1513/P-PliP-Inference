@@ -295,10 +295,11 @@ class CustomQdrantVectorStore(QdrantVectorStore):
 
 ### 4. LangGraph 기반 여행 계획 자동 생성 파이프라인
 
-단순한 선형적 LLM 호출(Chain)로는 복잡한 사용자 요구사항과 예외 상황을 처리하는 데 한계가 있었습니다. 이를 해결하기 위해 순환형 상태 관리 프레임워크인 **LangGraph**를 도입하여, 스스로 검색 품질을 평가하고 계획을 수정하는 **에이전트 파이프라인**을 구축했습니다.
+단순한 선형적 LLM 호출(Chain)로는 복잡한 사용자 요구사항과 예외 상황을 처리하는 데 한계가 있었습니다. 이를 해결하기 위해 순환형 상태 관리 프레임워크인 **LangGraph**를 도입하여, 스스로 검색 품질을 평가하고 계획을 수정하는 Self-RAG 파이프라인을 구축했습니다.
 
 #### 4.1. 파이프라인 구조 (Workflow)
-여행 계획 생성 프로세스를 다음과 같은 **Node**와 **Edge**로 정의하여 유연성을 확보했습니다.
+여행 계획 생성 프로세스를 다음과 같은 Node와 Edge로 정의하여 유연성을 확보했습니다.
+<img width="330" height="853" alt="image" src="https://github.com/user-attachments/assets/4884aeae-8632-4412-ac6c-e902d99638d1" />
 
 *   **State Management**: `PlanState`를 통해 검색 결과, 재시도 횟수, 피드백 등을 전역적으로 관리.
 *   **주요 프로세스**:
