@@ -232,7 +232,7 @@ Sparse 검색은 Dense 검색과 대비되는 아래와 같은 특징을 가집�
 *   **모델 성능 비교**:
     *   **`naver/splade-v3`**: 한국어로 전혀 학습이 되어있지 않아 검색에 사용할 수 없었습니다.
     *   **`yjoonjang/splade-ko-v1`**: **Hit Rate@5**가 가장 우수했으나, CPU 환경에서 인덱싱(저장) 속도가 매우 느린 단점이 있습니다.
-    *   **`Qdrant/bm25`** : FastEmbed를 지원하는 모델로 인덱싱 및 실시간 검색에서 매우 빠르다는 특징이 있지만, 한국어로 학습되어 있지 않아 검색 성능이 매우 처참했습니다.
+    *   **`Qdrant/bm25`** : FastEmbed를 지원하는 모델로 인덱싱 및 실시간 검색에서 매우 빠르다는 특징이 있지만, 한국어로 학습되어 있지 않아 검색 성능이 아쉬웠습니다.
     <img width="1081" height="750" alt="image" src="https://github.com/user-attachments/assets/289233ce-c0b2-44a3-b7ce-c5aaacf5328f" />
     <img width="672" height="123" alt="image" src="https://github.com/user-attachments/assets/3050b89a-2936-4773-b907-f002578e345b" />
 
