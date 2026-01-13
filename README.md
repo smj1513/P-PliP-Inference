@@ -30,6 +30,7 @@
 
 ### 1. 관광지 추천 엔진 구현 및 성능 고도화
 #### 성과 : 추천 성능 20% 개선
+#### 평가 및 질의 생성 모델 : Upstage Solar-pro2
 
 #### 최종 완성된 관광지 추천 흐름도
 <img width="743" height="345" alt="image" src="https://github.com/user-attachments/assets/298a1a51-11ba-4ff6-a6da-009cf4446ac4" />
